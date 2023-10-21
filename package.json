@@ -1,0 +1,15 @@
+{
+  "name": "realcoderuz-elonbot",
+  "version": "1.0.0",
+  "description": "",
+  "main": "bot.js",
+  "scripts": {
+    "start": "node bot.js",
+    "dev": "node bot.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "SaidqodirxonUz <SaidqodirxonUz@gmail.com>",
+  "license": "ISC",
+  "repository": "https://github.com/SaidqodirxonUz/RealCoderUz-ElonBot.git"
+}
