@@ -1,5 +1,6 @@
 const { Telegraf, Scenes, session } = require("telegraf");
 require("dotenv/config");
+const fs = require("fs");
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
 
@@ -7,6 +8,7 @@ const botUser = process.env.BOT_USER;
 const channelId = process.env.CHANNEL_ID;
 const channelUser = process.env.CHANNEL_USER;
 const adminUser = process.env.ADMIN_USER;
+const adminId = process.env.ADMIN_ID;
 
 const tabrikYollashScene = new Scenes.BaseScene("tabrikYollash");
 let originalMessage = null; // Store the original message
@@ -15,12 +17,11 @@ let pendingMessage = null; // Store the message being composed
 tabrikYollashScene.on("text", async (ctx) => {
   const updatedMessage = ctx.message.text;
 
+  ctx.reply("Sizning Xabaringiz :\n\n" + " " + updatedMessage);
+
   if (updatedMessage) {
     pendingMessage = updatedMessage; // Store the message being composed
-    ctx.reply(
-      "Tabrikingizni imloviy xatolarini tekshirib koʻring:",
-      keyboardCheckReject
-    );
+    ctx.reply("Tabrikingizni tasdiqlang:", keyboardCheckReject);
   } else {
     ctx.reply("Xatolik");
   }
@@ -30,7 +31,7 @@ tabrikYollashScene.on("photo", async (ctx) => {
   // Handle photo messages here
   const photo = ctx.message.photo[0]; // Assuming you want the first photo in the array
   const fileId = photo.file_id;
-  const photoCaption = ctx.message.caption;
+  const photoCaption = ctx.message.caption || "";
 
   ctx.session.fileId = fileId;
   ctx.session.photo = photo;
@@ -39,15 +40,25 @@ tabrikYollashScene.on("photo", async (ctx) => {
   console.log(photo, "photo");
   console.log(fileId, "fileId");
 
-  ctx.reply("Tabrikingizni istasangiz tahrirlang.", keyboardCheckReject);
+  try {
+    await ctx.telegram.sendPhoto(ctx.from.id, fileId, {
+      caption: photoCaption,
+    });
+
+    ctx.reply("Tabrikingizni tasdiqlang.", keyboardCheckReject);
+  } catch (error) {
+    console.log("Error sending the photo:", error);
+    ctx.reply("Xatolik yuz berdi. Qayta urinib ko'ring.", keyboardCheckReject);
+  }
+
   pendingMessage = null;
   ctx.scene.leave();
 });
 
 tabrikYollashScene.on("video", async (ctx) => {
-  const video = [ctx.message.video][0];
+  const video = ctx.message.video;
   const videoId = video.file_id;
-  const videoCaption = ctx.message.caption;
+  const videoCaption = ctx.message.caption || "";
 
   ctx.session.videoId = videoId;
   ctx.session.video = video;
@@ -56,7 +67,17 @@ tabrikYollashScene.on("video", async (ctx) => {
   console.log(video, "video");
   console.log(videoId, "videoId");
 
-  ctx.reply("Tabrikingizni istasangiz tahrirlang.", keyboardCheckReject);
+  try {
+    await ctx.telegram.sendVideo(ctx.from.id, videoId, {
+      caption: videoCaption,
+    });
+
+    ctx.reply("Tabrikingizni tasdiqlang.", keyboardCheckReject);
+  } catch (error) {
+    console.log("Error sending the video:", error);
+    ctx.reply("Xatolik yuz berdi. Qayta urinib ko'ring.", keyboardCheckReject);
+  }
+
   pendingMessage = null;
   ctx.scene.leave();
 });
@@ -113,10 +134,55 @@ const keyboardMajburiyAzo = {
   },
 };
 
+function saveUserIds(userIds) {
+  fs.writeFileSync("user_ids.json", JSON.stringify(userIds, null, 2), "utf8");
+}
+
+// Function to load user IDs from the JSON file
+function loadUserIds() {
+  if (fs.existsSync("user_ids.json")) {
+    const data = fs.readFileSync("user_ids.json", "utf8");
+    return JSON.parse(data);
+  }
+  return [];
+}
+
+async function sendToAllUsers(messageText) {
+  const userIDs = loadUserIds();
+
+  for (const userId of userIDs) {
+    try {
+      // Use copyMessage to send the message to each user
+      await bot.telegram.copyMessage(
+        userId,
+        channelId,
+        originalMessage.message_id
+      );
+    } catch (error) {
+      console.log(
+        `Xabar foydalanuvchiga yuborilmadi: ${userId}\nXato: ${error}`
+      );
+    }
+  }
+}
+
+function isAdminUser(ctx) {
+  console.log(ctx.message.from.id);
+  return ctx.message.from.id == adminId;
+}
+
 bot.command("start", async (ctx) => {
-  //
   const userId = ctx.message.from.id;
   const member = await ctx.telegram.getChatMember(channelId, userId);
+
+  // Load existing user IDs
+  let userIDs = loadUserIds();
+
+  // Check if the user ID is already saved
+  if (!userIDs.includes(userId)) {
+    userIDs.push(userId);
+    saveUserIds(userIDs); // Save the updated user IDs
+  }
 
   ctx.session.userId = userId;
   ctx.session.memberId = member;
@@ -134,6 +200,99 @@ bot.command("start", async (ctx) => {
   }
 });
 
+let updatedMessage = null;
+let isAdminInSendMode = false;
+
+bot.command("stat", (ctx) => {
+  const userIDs = loadUserIds();
+
+  if (isAdminUser(ctx)) {
+    const totalUsers = userIDs.length;
+
+    const message = `Hozirda foydalanuvchilar soni: ${totalUsers}`;
+    ctx.reply(message);
+  } else {
+    ctx.reply("Siz Admin emassiz");
+  }
+});
+
+bot.command("admin", (ctx) => {
+  const userIDs = loadUserIds();
+
+  if (isAdminUser(ctx)) {
+    const message = `/stat - Statistika\n\n/send - Foydalanuvchilarga xabar yuborish`;
+    ctx.reply(message);
+  } else {
+    ctx.reply("Siz Admin emassiz");
+  }
+});
+
+bot.command("send", async (ctx) => {
+  if (isAdminUser(ctx)) {
+    if (isAdminInSendMode) {
+      // If admin is already in "send mode," send the stored message to all users
+      if (updatedMessage) {
+        sendToAllUsers(updatedMessage);
+        ctx.reply(`Xabar barcha foydalanuvchilarga muvaffaqiyatli yuborildi.`);
+      } else {
+        ctx.reply("Xabar bo'sh");
+      }
+      // Reset the "send mode" state
+      isAdminInSendMode = false;
+    } else {
+      // If admin is not in "send mode," set the state to "send mode" and ask for the message
+      isAdminInSendMode = true;
+      ctx.reply("Iltimos, jo'natmoqchi bo'lgan xabaringizni yuboring:");
+    }
+  } else {
+    ctx.reply("Siz Admin emassiz");
+  }
+});
+
+bot.on("text", async (ctx) => {
+  const userIDs = loadUserIds();
+  // Check if the admin user is in "send mode"
+  if (isAdminInSendMode) {
+    // Store the message as updatedMessage
+    updatedMessage = ctx.message.text;
+
+    let successCount = 0;
+    let failureCount = 0;
+
+    for (const userId of userIDs) {
+      try {
+        await ctx.telegram.sendMessage(userId, updatedMessage);
+        successCount++;
+      } catch (error) {
+        console.log(
+          `Xabar foydalanuvchiga yuborilmadi: ${userId}\nXato: ${error}`
+        );
+        failureCount++;
+      }
+    }
+
+    if (successCount > 0) {
+      try {
+        await ctx.telegram.sendMessage(
+          adminId,
+          `Xabar barcha foydalanuvchilarga muvaffaqiyatli yuborildi. Yuborilgan: ${successCount}, Xatolik: ${failureCount}`
+        );
+      } catch (error) {
+        console.log(
+          `Xabar admin foydalanuvchiga yuborilmadi: ${adminId}\nXato: ${error}`
+        );
+      }
+    }
+  } else {
+    const messageText = ctx.message.text.toLowerCase();
+    if (!warningWords.includes(messageText)) {
+      ctx.reply(
+        `Uzr, bu buyruqni tushunmayman. Qayta /start buyrug'ini bosing.`
+      );
+    }
+  }
+});
+
 // left_chat_member
 
 bot.on("left_chat_member", (ctx) => {
@@ -147,31 +306,13 @@ bot.on("left_chat_member", (ctx) => {
 
   console.log("chiqdi" + " " + userId);
 
-  ctx.sendMessage(chatId, `Goodbye, user with ID ${userId}!`);
+  ctx.sendMessage(
+    chatId,
+    `Ushbu ${firstName} foydalanuvchi guruhni tark etdi !`
+  );
 });
 
 // left_chat_member
-
-bot.on("left_chat_member", async (ctx) => {
-  const member = ctx.message.left_chat_member;
-
-  // Check if the user is a bot
-  if (member) {
-    const chatId = ctx.chat.id;
-
-    const message = `Bot @${member.username} (${member.id}) has left the group!`;
-
-    // Send a message to the group
-    bot.telegram
-      .sendMessage(chatId, message)
-      .then(() => {
-        console.log(`Message sent to group: ${message}`);
-      })
-      .catch((error) => {
-        console.error(`Error sending a message: ${error}`);
-      });
-  }
-});
 
 bot.action("checkMajburiy", async (ctx) => {
   // const channelId = "";
@@ -210,27 +351,6 @@ bot.action("checkMajburiy", async (ctx) => {
   }
 });
 
-// bot.on("left_chat_member", async (ctx) => {
-//   const member = ctx.chatMember;
-
-//   if (member.status === "left") {
-//     const userId = member.user.id;
-//     const username = member.user.username;
-
-//     const message = `Foydalanuvchi @${username} (${userId}) kanaldan chiqib ketgan.`;
-
-//     // Send a message to the user
-//     ctx.telegram
-//       .sendMessage(userId, message)
-//       .then(() => {
-//         console.log(`Message sent to user @${username} (${userId}).`);
-//       })
-//       .catch((error) => {
-//         console.error(`Error sending a message: ${error}`);
-//       });
-//   }
-// });
-
 bot.action("tabrik_yollash", (ctx) => {
   originalMessage = ctx.update.callback_query.message; // Store the original message
 
@@ -249,7 +369,7 @@ bot.action("tabrik_yollash", (ctx) => {
 bot.action("check", (ctx) => {
   if (pendingMessage) {
     try {
-      const messageText = `Yangi Tabrik Yuborildi:\n\n "${pendingMessage}"\n\nKanalimiz: @${channelUser}`;
+      const messageText = `${pendingMessage}\n\nKanalimiz: @${channelUser}`;
 
       ctx.telegram.sendMessage(channelId, messageText, keyboardTabrikLink, {
         parse_mode: "HTML",
@@ -275,7 +395,10 @@ bot.action("check", (ctx) => {
       console.log(channelId, "if ichida channelId");
 
       ctx.telegram.sendPhoto(channelId, fileId, {
-        caption: photoCaption + `\n\n\nTabrik Yoʻllash : @${botUser}`,
+        caption:
+          photoCaption == undefined
+            ? ""
+            : photoCaption + `\n\n\nTabrik Yoʻllash : @${botUser}`,
       });
       ctx.editMessageText(
         `Tabrikingiz @${channelUser} kanaliga muvaffaqiyatli joylandi.`,
@@ -297,8 +420,12 @@ bot.action("check", (ctx) => {
       console.log(channelId, "if ichida channelId");
 
       ctx.telegram.sendVideo(channelId, videoId, {
-        caption: videoCaption + `\n\n\nTabrik Yoʻllash : @${botUser}`,
+        caption:
+          videoCaption == undefined
+            ? ""
+            : videoCaption + `\n\n\nTabrik Yoʻllash : @${botUser}`,
       });
+
       ctx.editMessageText(
         `Tabrikingiz @${channelUser} kanaliga muvaffaqiyatli joylandi.`,
         keyboardrestart
@@ -351,7 +478,7 @@ bot.command("dev", (ctx) => {
   ctx.reply(`Dasturchi: ${adminUser}`);
 });
 
-const warningWords = ["/start", "/help", "/dev"];
+const warningWords = ["/start", "/help", "/dev", "/stat", "/send"];
 
 bot.on("text", (ctx) => {
   const messageText = ctx.message.text.toLowerCase();

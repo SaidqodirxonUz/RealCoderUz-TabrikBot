@@ -14,6 +14,7 @@
   "repository": "https://github.com/SaidqodirxonUz/RealCoderUz-ElonBot.git",
   "dependencies": {
     "dotenv": "^16.3.1",
+    "node-schedule": "^2.1.1",
     "telegraf": "^4.14.0"
   }
 }
