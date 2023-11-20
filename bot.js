@@ -84,25 +84,44 @@ tabrikYollashScene.on("video", async (ctx) => {
   ctx.scene.leave();
 });
 
-// calculate new year start
+// calculate new year
 function calculateTimeToNewYear() {
   const currentDate = new Date();
   const newYearDate = new Date(currentDate.getFullYear() + 1, 0, 1);
   const timeDifference = newYearDate - currentDate;
 
-  // Vaqtni millisani saniyaga aylantirish
-  const seconds = Math.floor(timeDifference / 1000);
-  const minutes = Math.floor(seconds / 60);
-  const hours = Math.floor(minutes / 60);
-
   return {
-    days: Math.floor(hours / 24),
-    hours: hours % 24,
-    minutes: minutes % 60,
-    seconds: seconds % 60,
+    newDays: Math.floor(timeDifference / (1000 * 60 * 60 * 24)),
+    newHours: Math.floor(
+      (timeDifference % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)
+    ),
+    newMinutes: Math.floor((timeDifference % (1000 * 60 * 60)) / (1000 * 60)),
+    newSeconds: Math.floor((timeDifference % (1000 * 60)) / 1000),
   };
 }
-// calculate new year end
+
+// Hozirgi vaqtni hisoblash uchun funksiya
+function getCurrentTime() {
+  const currentDate = new Date();
+
+  const options = {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  };
+  const formattedDate = currentDate.toLocaleDateString("en-US", options);
+
+  return {
+    currentHours: currentDate.getHours(),
+    currentMinutes: currentDate.getMinutes(),
+    currentSeconds: currentDate.getSeconds(),
+    currentDate: formattedDate,
+  };
+}
 
 const stage = new Scenes.Stage([tabrikYollashScene]);
 
@@ -393,23 +412,61 @@ bot.action("tabrik_yollash", (ctx) => {
 
 bot.action("calculatenewyear", (ctx) => {
   const remainingTime = calculateTimeToNewYear();
+  const currentTime = getCurrentTime();
+  console.log(currentTime.currentDate);
 
-  ctx.reply(
-    `<b>Yangi yilga qolgan vaqt:\n${remainingTime.days} kun, ${remainingTime.hours} soat, ${remainingTime.minutes} daqiqa, ${remainingTime.seconds} soniya</b>`,
-    { parse_mode: "HTML" }
-  );
+  const htmlMessage = `<b>🎄 Yangi 2024-yilga \n\n📆 ${remainingTime.newDays} kun\n⏰ ${remainingTime.newHours} soat\n⏱ ${remainingTime.newMinutes} daqiqa\n⏳ ${remainingTime.newSeconds} soniya qoldi!\n\n------------ Hozirgi vaqt ----------\n\n📆 ${currentTime.currentDate}\n⏰ ${currentTime.currentHours}:${currentTime.currentMinutes}:${currentTime.currentSeconds}\n</b>`;
+
+  ctx.replyWithHTML(htmlMessage, {
+    parse_mode: "HTML",
+    reply_markup: {
+      inline_keyboard: [
+        [{ text: "🔄 Yangilash", callback_data: "refreshNewData" }],
+      ],
+    },
+  });
+
+  bot.action("refreshNewData", async (ctx) => {
+    // Update the message content
+    const updatedHtmlMessage = getUpdatedHtmlMessage();
+
+    // Edit the existing message with the updated content
+    await ctx.editMessageText(updatedHtmlMessage, {
+      parse_mode: "HTML",
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: "🔄 Yangilash", callback_data: "refreshNewData" }],
+        ],
+      },
+    });
+
+    // Send a notification to the user after processing the action
+    await ctx.answerCbQuery("Vaqt Yangilandi!");
+  });
 });
+
+function getUpdatedHtmlMessage() {
+  // Calculate the updated countdown values
+  const remainingTime = calculateTimeToNewYear();
+  const currentTime = getCurrentTime();
+
+  // Create the updated HTML message
+  const updatedHtmlMessage = `<b>🎄 Yangi 2024-yilga \n\n📆 ${remainingTime.newDays} kun\n⏰ ${remainingTime.newHours} soat\n⏱ ${remainingTime.newMinutes} daqiqa\n⏳ ${remainingTime.newSeconds} soniya qoldi!\n\n------------ Hozirgi vaqt ----------\n\n📆 ${currentTime.currentDate}\n⏰ ${currentTime.currentHours}:${currentTime.currentMinutes}:${currentTime.currentSeconds}\n</b>`;
+
+  return updatedHtmlMessage;
+}
+
 bot.action("check", (ctx) => {
   if (pendingMessage) {
     try {
-      const messageText = `${pendingMessage}\n\nKanalimiz: @${2}`;
+      const messageText = `${pendingMessage}\n\nKanalimiz: @${channelUser}`;
 
       ctx.telegram.sendMessage(channelId, messageText, keyboardTabrikLink, {
         parse_mode: "HTML",
       });
 
       ctx.editMessageText(
-        `Tabrikingiz @${2} kanaliga muvaffaqiyatli joylandi.`,
+        `Tabrikingiz @${channelUser} kanaliga muvaffaqiyatli joylandi.`,
         keyboardrestart
       );
     } catch (error) {
@@ -434,7 +491,7 @@ bot.action("check", (ctx) => {
             : photoCaption + `\n\n\nTabrik Yoʻllash : @${botUser}`,
       });
       ctx.editMessageText(
-        `Tabrikingiz @${2} kanaliga muvaffaqiyatli joylandi.`,
+        `Tabrikingiz @${channelUser} kanaliga muvaffaqiyatli joylandi.`,
         keyboardrestart
       );
     } catch (error) {
