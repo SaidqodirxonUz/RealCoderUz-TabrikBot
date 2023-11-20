@@ -6,7 +6,9 @@ const bot = new Telegraf(process.env.BOT_TOKEN);
 
 const botUser = process.env.BOT_USER;
 const channelId = process.env.CHANNEL_ID;
+const channelId2 = process.env.CHANNEL_ID2;
 const channelUser = process.env.CHANNEL_USER;
+const channelUser2 = process.env.CHANNEL_USER2;
 const adminUser = process.env.ADMIN_USER;
 const adminId = process.env.ADMIN_ID;
 
@@ -82,6 +84,26 @@ tabrikYollashScene.on("video", async (ctx) => {
   ctx.scene.leave();
 });
 
+// calculate new year start
+function calculateTimeToNewYear() {
+  const currentDate = new Date();
+  const newYearDate = new Date(currentDate.getFullYear() + 1, 0, 1);
+  const timeDifference = newYearDate - currentDate;
+
+  // Vaqtni millisani saniyaga aylantirish
+  const seconds = Math.floor(timeDifference / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+
+  return {
+    days: Math.floor(hours / 24),
+    hours: hours % 24,
+    minutes: minutes % 60,
+    seconds: seconds % 60,
+  };
+}
+// calculate new year end
+
 const stage = new Scenes.Stage([tabrikYollashScene]);
 
 bot.use(session());
@@ -113,6 +135,7 @@ const keyboardTabrikYollash = {
   reply_markup: {
     inline_keyboard: [
       [{ text: "📖 Tabrik Yoʻllash", callback_data: "tabrik_yollash" }],
+      [{ text: "🆕 Yangi yilni hisoblash", callback_data: "calculatenewyear" }],
     ],
   },
 };
@@ -121,6 +144,7 @@ const keyboardTabrikLink = {
   reply_markup: {
     inline_keyboard: [
       [{ text: "📖 Tabrik Yoʻllash", url: `https://t.me/${botUser}` }],
+      [{ text: "🆕 Yangi yilni hisoblash", url: `https://t.me/${botUser}` }],
     ],
   },
 };
@@ -128,6 +152,7 @@ const keyboardTabrikLink = {
 const keyboardMajburiyAzo = {
   reply_markup: {
     inline_keyboard: [
+      [{ text: "➕ A'zo bo'lish", url: `https://t.me/${channelUser2}` }],
       [{ text: "➕ A'zo bo'lish", url: `https://t.me/${channelUser}` }],
       [{ text: "✅ Tekshirish", callback_data: "checkMajburiy" }],
     ],
@@ -366,17 +391,25 @@ bot.action("tabrik_yollash", (ctx) => {
   ctx.scene.enter("tabrikYollash");
 });
 
+bot.action("calculatenewyear", (ctx) => {
+  const remainingTime = calculateTimeToNewYear();
+
+  ctx.reply(
+    `<b>Yangi yilga qolgan vaqt:\n${remainingTime.days} kun, ${remainingTime.hours} soat, ${remainingTime.minutes} daqiqa, ${remainingTime.seconds} soniya</b>`,
+    { parse_mode: "HTML" }
+  );
+});
 bot.action("check", (ctx) => {
   if (pendingMessage) {
     try {
-      const messageText = `${pendingMessage}\n\nKanalimiz: @${channelUser}`;
+      const messageText = `${pendingMessage}\n\nKanalimiz: @${2}`;
 
       ctx.telegram.sendMessage(channelId, messageText, keyboardTabrikLink, {
         parse_mode: "HTML",
       });
 
       ctx.editMessageText(
-        `Tabrikingiz @${channelUser} kanaliga muvaffaqiyatli joylandi.`,
+        `Tabrikingiz @${2} kanaliga muvaffaqiyatli joylandi.`,
         keyboardrestart
       );
     } catch (error) {
@@ -401,7 +434,7 @@ bot.action("check", (ctx) => {
             : photoCaption + `\n\n\nTabrik Yoʻllash : @${botUser}`,
       });
       ctx.editMessageText(
-        `Tabrikingiz @${channelUser} kanaliga muvaffaqiyatli joylandi.`,
+        `Tabrikingiz @${2} kanaliga muvaffaqiyatli joylandi.`,
         keyboardrestart
       );
     } catch (error) {
