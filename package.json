@@ -13,6 +13,7 @@
   "license": "ISC",
   "repository": "https://github.com/SaidqodirxonUz/RealCoderUz-ElonBot.git",
   "dependencies": {
+    "axios": "^1.6.2",
     "dotenv": "^16.3.1",
     "node-schedule": "^2.1.1",
     "telegraf": "^4.14.0"

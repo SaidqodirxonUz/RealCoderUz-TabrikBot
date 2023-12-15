@@ -1,8 +1,6 @@
 const { Telegraf, Scenes, session } = require("telegraf");
 require("dotenv/config");
 const fs = require("fs");
-const axios = require("axios");
-const { Buffer } = require("buffer");
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
 
@@ -13,7 +11,6 @@ const channelUser = process.env.CHANNEL_USER;
 const channelUser2 = process.env.CHANNEL_USER2;
 const adminUser = process.env.ADMIN_USER;
 const adminId = process.env.ADMIN_ID;
-const realcoderAPI = "https://apis.realcoder.uz/api/newyear/";
 
 const tabrikYollashScene = new Scenes.BaseScene("tabrikYollash");
 let originalMessage = null; // Store the original message
@@ -21,28 +18,14 @@ let pendingMessage = null; // Store the message being composed
 
 tabrikYollashScene.on("text", async (ctx) => {
   const updatedMessage = ctx.message.text;
-  console.log(ctx, "ctx");
-  console.log(ctx.from, "ctx from");
 
-  let userIds = ctx.from.id;
-  let firstName = ctx.from.first_name;
-
-  ctx.session.firstName = firstName;
-  ctx.session.userIds = userIds;
-
-  ctx.reply("Sizning Xabaringiz :\n\n" + " " + updatedMessage, {
-    parse_mode: "HTML",
-  });
+  ctx.reply("Sizning Xabaringiz :\n\n" + " " + updatedMessage);
 
   if (updatedMessage) {
     pendingMessage = updatedMessage; // Store the message being composed
-    ctx.reply(
-      `<b>🚫Tabrikingizda xatolik yoki nomaqbul (18+) soʻzlar ishlatilgan boʻlsa toʻgʻirlab qayta yuboring\n\n⚠️Toʻgʻri deb hisoblasangiz xabaringizni tasdiqlang.</b>
-      `,
-      { parse_mode: "HTML", ...keyboardCheckReject }
-    );
+    ctx.reply("Tabrikingizni tasdiqlang:", keyboardCheckReject);
   } else {
-    ctx.reply("Botda Xatolik qayta urinib koʻring", keyboardrestart);
+    ctx.reply("Xatolik");
   }
 });
 
@@ -64,12 +47,9 @@ tabrikYollashScene.on("photo", async (ctx) => {
       caption: photoCaption,
     });
 
-    ctx.reply("<b>Tabrikingizni tasdiqlang.</b>", {
-      parse_mode: "HTML",
-      ...keyboardCheckReject,
-    });
+    ctx.reply("Tabrikingizni tasdiqlang.", keyboardCheckReject);
   } catch (error) {
-    // console.log("Error sending the photo:", error);
+    console.log("Error sending the photo:", error);
     ctx.reply("Xatolik yuz berdi. Qayta urinib ko'ring.", keyboardCheckReject);
   }
 
@@ -143,78 +123,11 @@ function getCurrentTime() {
   };
 }
 
-// Create Certificate
-
-const createCertificateScene = new Scenes.BaseScene("createCertificate");
-
-let userText;
-
-createCertificateScene.enter((ctx) => {
-  console.log("shu yerda ");
-  ctx.reply("Sertifikat tayyorlash uchun text yuboring:", keyboardReject);
-});
-
-// Listen for text messages within the scene
-createCertificateScene.hears(/.*/, async (ctx) => {
-  // Set userText when a text message is received
-  userText = ctx.message.text;
-
-  // Ask the user to select a button
-  const inlineKeyboard = [
-    [{ text: "❌ Bekor qilish", callback_data: "restartBot" }],
-  ];
-  for (let i = 1; i <= 7; i++) {
-    inlineKeyboard.push([createInlineButton(i)]);
-  }
-
-  const inlineKeyboardString = JSON.stringify(inlineKeyboard);
-
-  ctx.reply("Bizda 7-xil dizayn mavjud. \n\nRaqamlardan birini tanlang:", {
-    reply_markup: {
-      inline_keyboard: inlineKeyboard,
-    },
-  });
-});
-
-// Listen for button presses within the scene
-createCertificateScene.action(/select_(\d+)/, async (ctx) => {
-  const buttonNumber = ctx.match[1];
-
-  console.log(buttonNumber, "ButtonNumber");
-
-  try {
-    if (userText) {
-      const text = userText;
-      const apiUrl = `${realcoderAPI}${buttonNumber}?text=${text}`;
-      console.log(apiUrl, "apiUrl");
-      const caption = "Sertifikat muvvafaqiyatli yasaldi.";
-
-      await ctx.replyWithPhoto({ url: apiUrl }, { caption });
-    }
-    console.log(userText, "UserText");
-  } catch (error) {
-    ctx.reply(`Sertifikat yasalmadi, XATO likni @${adminUser} ga xabar qiling`);
-  }
-
-  // Leave the scene after processing the action
-  ctx.scene.leave();
-});
-
-function createInlineButton(number) {
-  return {
-    text: number.toString(),
-    callback_data: `select_${number}`,
-  };
-}
-
-// Register the scene with Telegraf
-
-const stage = new Scenes.Stage([tabrikYollashScene, createCertificateScene]);
+const stage = new Scenes.Stage([tabrikYollashScene]);
 
 bot.use(session());
 bot.use(stage.middleware());
 
-// keyboards start
 const keyboardReject = {
   reply_markup: {
     inline_keyboard: [[{ text: "❌ Bekor qilish", callback_data: "reject" }]],
@@ -237,27 +150,11 @@ const keyboardCheckReject = {
   },
 };
 
-const keyboardAdminCheckReject = {
-  reply_markup: {
-    inline_keyboard: [
-      [{ text: "✅ Tasdiqlash", callback_data: "approveTabrik" }],
-      [{ text: "❌ Bekor qilish", callback_data: "bekoreTabrik" }],
-      [{ text: "🔄 Qayta joʻnatish", callback_data: "restarted" }],
-    ],
-  },
-};
-
 const keyboardTabrikYollash = {
   reply_markup: {
     inline_keyboard: [
       [{ text: "📖 Tabrik Yoʻllash", callback_data: "tabrik_yollash" }],
       [{ text: "🆕 Yangi yilni hisoblash", callback_data: "calculatenewyear" }],
-      [
-        {
-          text: "📃 Sertifikat tayyorlash",
-          callback_data: "createCertificate",
-        },
-      ],
     ],
   },
 };
@@ -267,32 +164,6 @@ const keyboardTabrikLink = {
     inline_keyboard: [
       [{ text: "📖 Tabrik Yoʻllash", url: `https://t.me/${botUser}` }],
       [{ text: "🆕 Yangi yilni hisoblash", url: `https://t.me/${botUser}` }],
-      [
-        {
-          text: "📃 Sertifikat tayyorlash",
-          url: `https://t.me/${botUser}`,
-        },
-      ],
-    ],
-  },
-};
-
-const keyboardAdminLink = {
-  reply_markup: {
-    inline_keyboard: [
-      [{ text: "👨‍💻Adminstrator", url: `https://t.me/${adminUser}` }],
-      [
-        {
-          text: "🎉Tabrik Yoʻllash Kanalimiz ",
-          url: `https://t.me/${channelUser}`,
-        },
-      ],
-      [
-        {
-          text: "📔Blogimiz",
-          url: `https://t.me/${channelUser2}`,
-        },
-      ],
     ],
   },
 };
@@ -307,9 +178,6 @@ const keyboardMajburiyAzo = {
   },
 };
 
-//keyboards end
-
-// User ID saved start
 function saveUserIds(userIds) {
   fs.writeFileSync("user_ids.json", JSON.stringify(userIds, null, 2), "utf8");
 }
@@ -323,46 +191,6 @@ function loadUserIds() {
   return [];
 }
 
-// User ID saved end
-
-// congrats json file start
-
-const congratsFilePath = "congrats.json";
-
-// Function to save data to JSON file
-function saveDataToJSON(data) {
-  fs.writeFileSync(congratsFilePath, JSON.stringify(data, null, 2));
-}
-
-// Function to load data from JSON file
-function loadDataFromJSON() {
-  try {
-    const data = fs.readFileSync(congratsFilePath);
-    return JSON.parse(data);
-  } catch (error) {
-    return [];
-  }
-}
-
-bot.use((ctx, next) => {
-  ctx.session.pendingMessage = null;
-  return next();
-});
-
-function markMessageAsApproved(messageData) {
-  const congratsData = loadDataFromJSON();
-  const index = congratsData.findIndex(
-    (entry) => entry.message === messageData.message
-  );
-
-  if (index !== -1) {
-    congratsData[index].approved = true;
-    saveDataToJSON(congratsData);
-  }
-}
-
-// congrats JSON file end
-
 async function sendToAllUsers(messageText) {
   const userIDs = loadUserIds();
 
@@ -375,7 +203,9 @@ async function sendToAllUsers(messageText) {
         originalMessage.message_id
       );
     } catch (error) {
-      ctx.reply(`Xabar foydalanuvchiga yuborilmadi: ${userId}\nXato: ${error}`);
+      console.log(
+        `Xabar foydalanuvchiga yuborilmadi: ${userId}\nXato: ${error}`
+      );
     }
   }
 }
@@ -403,37 +233,17 @@ bot.command("start", async (ctx) => {
 
   if (member.status === "member" || member.status === "administrator") {
     ctx.reply(
-      "<b>Assalomu Alaykum, Tabrik Yoʻllash botimizga xush kelibsiz! \nTabrik jo'natish uchun pastdagi tugmani bosing 👇</b>",
-      { parse_mode: "HTML", ...keyboardTabrikYollash }
+      "Assalomu Alaykum, Tabrik Yoʻllash botimizga xush kelibsiz! \nTabrik jo'natish uchun pastdagi tugmani bosing 👇",
+      keyboardTabrikYollash
     );
   } else {
     ctx.reply(
-      "<b>Assalomu Alaykum, Tabrik Yoʻllash botimizga xush kelibsiz! \nBotdan To'liq foydalanish uchun pastdagi kanalga a'zo bo'ling👇</b>",
-      { parse_mode: "HTML", ...keyboardMajburiyAzo }
+      "Assalomu Alaykum, Tabrik Yoʻllash botimizga xush kelibsiz! \nBotdan To'liq foydalanish uchun pastdagi kanalga a'zo bo'ling👇",
+      keyboardMajburiyAzo
     );
   }
 });
 
-bot.command("dev", (ctx) => {
-  ctx.reply(`Dasturchi: ${adminUser}`);
-});
-
-bot.command("help", (ctx) => {
-  ctx.reply(
-    `<b>Ushbu bot yordamida @${channelUser} kanaliga o'z tabrigingizni jo'natishingiz mumkin.</b>`,
-    { parse_mode: "HTML", ...keyboardrestart }
-  );
-});
-// Xatolik yuz berdi. Qayta urinib ko'ring.
-
-//
-
-bot.action("createCertificate", (ctx) => {
-  // Start the scene when the 'createCertificate' action is triggered
-  ctx.scene.enter("createCertificate");
-});
-
-//
 let updatedMessage = null;
 let isAdminInSendMode = false;
 
@@ -575,8 +385,8 @@ bot.action("checkMajburiy", async (ctx) => {
 
   if (isMember) {
     ctx.editMessageText(
-      "<b>Assalomu alaykum! Tabrik Yoʻllash botimizga xush kelibsiz! \nTabrik jo'natish uchun quyidagi tugmani bosing 👇</b>",
-      { parse_mode: "HTML", ...keyboardTabrikYollash }
+      "Assalomu alaykum! Tabrik Yoʻllash botimizga xush kelibsiz! \nTabrik jo'natish uchun quyidagi tugmani bosing 👇",
+      keyboardTabrikYollash
     );
   } else {
     ctx.answerCbQuery("Botdan to'liq foydalanish uchun kanalga a'zo bo'ling", {
@@ -589,10 +399,7 @@ bot.action("tabrik_yollash", (ctx) => {
   originalMessage = ctx.update.callback_query.message; // Store the original message
 
   // Get the updated tabrik message from the user
-  ctx.editMessageText(
-    "<b>Tabrik xabaringizni kiriting:\n\n🚫Tabrikingizda imloviy xatolik va nomaqbul (18+) soʻzlar ishlatmang.</b>",
-    { parse_mode: "HTML", ...keyboardReject }
-  );
+  ctx.editMessageText("Tabrik xabaringizni kiriting:", keyboardReject);
 
   // Save the user's chat ID for later use
   ctx.session.userId = ctx.from.id;
@@ -649,46 +456,21 @@ function getUpdatedHtmlMessage() {
   return updatedHtmlMessage;
 }
 
-bot.action("check", async (ctx) => {
+bot.action("check", (ctx) => {
   if (pendingMessage) {
-    console.log(pendingMessage, "check");
     try {
-      if (pendingMessage) {
-        console.log(pendingMessage, "check tryda");
-        let firstName = ctx.session.firstName;
+      const messageText = `${pendingMessage}\n\nKanalimiz: @${channelUser}`;
 
-        let userIds = ctx.session.userIds;
+      ctx.telegram.sendMessage(channelId, messageText, keyboardTabrikLink, {
+        parse_mode: "HTML",
+      });
 
-        const messageText = `<a href="tg://user?id=${userIds}">${firstName}</a> dan yangi tabrik\n\n${pendingMessage}\n\nKanalimiz: @${channelUser}`;
-
-        // Send tabrik message to the admin
-
-        await ctx.telegram.sendMessage(adminId, messageText, {
-          parse_mode: "HTML",
-          ...keyboardAdminCheckReject,
-        });
-
-        const congratsData = loadDataFromJSON();
-        const messageData = {
-          userId: ctx.session.userIds,
-          message: messageText,
-          approved: false,
-        };
-        congratsData.push(messageData);
-        saveDataToJSON(congratsData);
-
-        // Ask the admin for approval
-        ctx.editMessageText(
-          `<b>Tabrikingiz Adminstratorga muvaffaqiyatli yuborildi. \nAgar Adminstrator tomonidan tasdiqlansa kanalimizga joylanadi. \nKanalda kuzatishni davom eting.\n Agar joʻnatmoqchi boʻlgan tabrigingiz juda muhim boʻlsa Adminstrator bilan boʻgʻlaning</b>.`,
-          { parse_mode: "HTML", ...keyboardAdminLink }
-        );
-      }
-      ctx.scene.leave();
-    } catch (error) {
-      return ctx.editMessageText(
-        `Joʻnatishda xatolik, Qayta urinib ko'ring `,
+      ctx.editMessageText(
+        `Tabrikingiz @${channelUser} kanaliga muvaffaqiyatli joylandi.`,
         keyboardrestart
       );
+    } catch (error) {
+      return ctx.editMessageText(`Qayta urinib ko'ring `, keyboardrestart);
     }
   }
 
@@ -749,94 +531,6 @@ bot.action("check", async (ctx) => {
   // }
 });
 
-////////
-
-// Action handler for checking and approving messages
-bot.action("approveTabrik", async (ctx) => {
-  try {
-    const congratsData = loadDataFromJSON();
-    const index = congratsData.findIndex((entry) => entry.approved === false);
-
-    console.log(index, "index approve");
-
-    if (index !== -1) {
-      // Message is not approved yet
-
-      const messageData = congratsData[index];
-
-      // Send approved message to the channel
-      await ctx.telegram.sendMessage(channelId, messageData.message, {
-        parse_mode: "HTML",
-        ...keyboardTabrikLink,
-      });
-
-      ctx.telegram.sendMessage(
-        messageData.userId,
-        `<b>Sizning xabaringiz ma'qullandi va @${channelUser} kanalga yuborildi !</b>`,
-        { parse_mode: "HTML", ...keyboardrestart }
-      );
-
-      congratsData[index].approved = true;
-      saveDataToJSON(congratsData);
-
-      ctx.answerCbQuery("Muvvafaqiyatli yuborildi", {
-        show_alert: true,
-      });
-    }
-
-    // Reset the pending message
-    ctx.session.pendingMessage = null;
-  } catch (error) {
-    ctx.reply("Xatolik yuz berdi. Iltimos, yana bir bor urinib ko'ring.");
-  }
-});
-
-// bekoreTabrik
-
-bot.action("bekoreTabrik", async (ctx) => {
-  try {
-    const congratsData = loadDataFromJSON();
-
-    console.log("Bekore Tabrik da ");
-    const index = congratsData.findIndex((entry) => entry.approved === false);
-
-    console.log(index, "index");
-
-    if (index !== -1) {
-      // Message is not approved yet
-
-      const messageData = congratsData[index];
-
-      // //Send approved message to the channel
-      // await ctx.telegram.sendMessage(channelId, messageData.message, {
-      //   parse_mode: "HTML",
-      //   ...keyboardTabrikLink,
-      // });
-
-      console.log(messageData, "message data");
-
-      ctx.telegram.sendMessage(
-        messageData.userId,
-        `<b>Sizning xabaringiz ma'qullanmadi, Xabaringizni tekshiring nomaqbul (18+) soʻzlar , va imloga eʻtibor bergan holda qayta yuborishingiz mumkin !</b>`,
-        { parse_mode: "HTML", ...keyboardrestart }
-      );
-
-      congratsData[index].approved = true;
-      saveDataToJSON(congratsData);
-
-      ctx.answerCbQuery("Muvvafaqiyatli bekor qilindi", {
-        show_alert: true,
-      });
-    }
-
-    // Reset the pending message
-    ctx.session.pendingMessage = null;
-  } catch (error) {
-    ctx.reply("Xatolik yuz berdi. Iltimos, yana bir bor urinib ko'ring.");
-  }
-});
-
-///////////
 bot.action("restarted", (ctx) => {
   // Leave the current scene (if any)
   ctx.scene.leave();
@@ -850,8 +544,8 @@ bot.action("restarted", (ctx) => {
 
 bot.action("reject", (ctx) => {
   ctx.editMessageText(
-    "<b>Tabrik jo'natish uchun pastdagi tugmani bosing 👇</b>",
-    { parse_mode: "HTML", ...keyboardTabrikYollash }
+    "Tabrik jo'natish uchun pastdagi tugmani bosing 👇",
+    keyboardTabrikYollash
   );
   ctx.scene.leave();
 });
@@ -859,12 +553,22 @@ bot.action("reject", (ctx) => {
 bot.action("restartBot", (ctx) => {
   ctx.scene.leave();
   ctx.editMessageText(
-    "<b>Assalomu Alaykum, Tabrik Yoʻllash botimizga xush kelibsiz! \nTabrik jo'natish uchun pastdagi tugmani bosing 👇</b>",
-    { parse_mode: "HTML", ...keyboardTabrikYollash }
+    "Assalomu Alaykum, Tabrik Yoʻllash botimizga xush kelibsiz! \nTabrik jo'natish uchun pastdagi tugmani bosing 👇",
+    keyboardTabrikYollash
   );
 });
 
-const warningWords = ["/start", "/help", "/dev", "/stat", "/send", "/admin"];
+bot.command("help", (ctx) => {
+  ctx.reply(
+    `Ushbu bot yordamida @${channelUser} kanaliga avtomatik o'z tabrigingizni jo'nata olasiz.`
+  );
+});
+
+bot.command("dev", (ctx) => {
+  ctx.reply(`Dasturchi: ${adminUser}`);
+});
+
+const warningWords = ["/start", "/help", "/dev", "/stat", "/send"];
 
 bot.on("text", (ctx) => {
   const messageText = ctx.message.text.toLowerCase();
